@@ -1,0 +1,21 @@
+spring:
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
+      embedding:
+        options:
+          model-name: text-embedding-v3 # 或者 text-embedding-v3
+      chat:
+        options:
+          model: qwen3-max-2026-01-23
+    mcp:
+      client:
+        enabled:  ${MCP_ENABLE:false}
+        sse:
+          connections:
+            das-mcp:
+              sse-endpoint: /sse
+              url: ${MCP_URL:http://localhost:8000/} # MCP Server 的 SSE 端点
+        request-timeout: 60s
+server:
+  port: 8081
