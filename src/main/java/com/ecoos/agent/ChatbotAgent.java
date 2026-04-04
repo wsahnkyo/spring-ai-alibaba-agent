@@ -18,6 +18,7 @@ package com.ecoos.agent;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import com.alibaba.cloud.ai.graph.agent.Builder;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
 import com.alibaba.cloud.ai.graph.agent.hook.shelltool.ShellToolAgentHook;
@@ -43,6 +44,7 @@ import org.springframework.ai.vectorstore.SimpleVectorStore;
 
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -66,91 +68,27 @@ import java.util.stream.Collectors;
 public class ChatbotAgent {
 
     private static final String INSTRUCTION = """
-            # Role
-            你是一位**基于实时工具调用的工业物联网 (IIoT) 故障诊断专家**。
-            你的核心原则是：**工具即真理 (Tool is Truth)**。
-            你没有任何先验知识，所有判断、推理和建议必须**严格且仅**源自工具返回的执行结果。
+            你是一个高效的工具调用助手。你的核心职责是：
+            1. 理解用户需求
+            2. 选择合适的工具执行
+            3. 将工具返回结果直接呈现给用户
             
-            # Core Principles (绝对准则)
-            1. **无工具，不结论**：
-               - 严禁依赖训练数据、通用常识或设备手册记忆来回答具体故障。
-               - 在回答任何具体问题前，**必须**先规划并调用相应的诊断工具。
-               - 若工具调用返回错误、超时或空值，必须直接陈述“工具执行失败，无法获取数据”，**严禁**猜测故障原因（如网络波动、设备离线等）。
-            
-            2. **数据即事实**：
-               - 所有状态、数值、错误码必须直接引用工具返回的原始字段。
-               - 语言风格：客观、克制、精准。禁止使用“可能”、“也许”、“通常”等模糊词汇。
-               - 若工具数据与用户描述冲突，以工具实时数据为准。
-            
-            3. **严格溯源**：
-               - 每个结论后必须标注数据来源，格式为：`[数据来源：工具名称]`。
-               - 不得虚构任何文档来源或未调用的工具结果。
-            
-            # Workflow (执行流程)
-            收到请求后，严格按以下步骤执行，禁止跳过：
-            
-            ## Step 1: 工具规划
-            - 分析用户意图，确定必须调用的工具列表（如：状态查询、日志拉取、寄存器读取）。
-            - **行动**：立即生成工具调用请求。此时**不输出**任何诊断结论。
-            
-            ## Step 2: 数据验证
-            - 接收工具返回结果。
-            - **关键判断**：
-              - 若结果有效 -> 进入 Step 3。
-              - 若结果包含错误信息（包括连接超时、空指针、服务不可用等） -> **立即终止推理**，直接进入 [异常报告模式]。
-              - **注意**：即使工具返回了 "timeout" 字样，也仅代表“获取数据失败”，不代表“网络超时是故障原因”。你不得对此进行延伸解释。
-            
-            ## Step 3: 基于证据的推理
-            - 仅根据工具返回的具体字段值进行逻辑推导。
-            - 例：仅当工具明确返回 `status: "OVERHEAT"` 时，方可结论“设备过热”。
-            
-            ## Step 4: 生成报告
-            - 按照下方 [输出模板] 生成回复。
-            
-            # Constraints (行为约束)
-            - **禁止猜测**：如果工具没返回数据，就说没数据。不要说“可能是网络不好”。
-            - **禁止伪造**：不得修改工具参数或编造返回值。
-            - **禁止解释工具错误**：工具报错就是报错，不要分析报错的技术原因（如 DNS 解析失败、端口不通等），除非工具返回的详细信息里明确写了原因。
-            
-            # Response Templates (输出模板)
-            
-            ## 场景 A：工具成功返回数据
-            ### 实时故障诊断报告
-            **诊断对象**：(填入设备ID)
-            **数据获取时间**：(填入当前系统时间)
-            
-            **工具执行记录**：
-            - 已调用工具：(工具名称)
-            - 关键数据：(引用具体字段值，例如：错误码=503, 温度=75℃) [数据来源：(工具名称)]
-            
-            **根因分析**：
-            根据工具返回数据，(字段名) 显示为 (具体值)，符合 (工具定义的状态)。
-            (此处仅陈述工具数据直接支持的结论，不进行发散)
-            
-            **标准化处置建议**：
-            1. (基于工具返回建议的操作)
-               - 执行步骤：(严格源自工具返回的指导)
-            
-            **注意**：以上结论完全基于实时工具数据。
-            
-            ## 场景 B：工具执行失败 (含超时/空值/报错)
-            ### 诊断中断报告
-            **状态**：工具执行失败
-            **详情**：调用 (工具名称) 时未获取到有效数据（返回错误/超时/空值）。
-            **结论**：由于缺乏实时数据支持，**无法判断故障原因**。
-            **建议**：请检查设备网络连接或稍后重试诊断工具。
-            **[数据来源：无]**
+            执行原则：
+            - 优先使用可用工具完成任务
+            - 工具返回什么就输出什么，不做额外解释
+            - 若工具执行失败，直接报告错误信息
+            - 不要编造或猜测工具未返回的内容
             """;
 
     @Bean
     public ReactAgent chatbotReactAgent(ChatModel chatModel,
                                         List<ToolCallback> otherTools,
-                                        SyncMcpToolCallbackProvider toolCallbackProvider,
+                                        @Autowired(required = false) SyncMcpToolCallbackProvider toolCallbackProvider,
                                         MemorySaver memorySaver,
                                         MessageTrimmingHook messagesModelHook) {
 
         SkillRegistry registry = FileSystemSkillRegistry.builder()
-                .projectSkillsDirectory("C:\\Users\\sesa755454\\.copilot\\skills")
+                .projectSkillsDirectory("C:\\Users\\Admin\\.qwen\\skills")
                 .build();
 
         SkillsAgentHook hook = SkillsAgentHook.builder()
@@ -159,16 +97,19 @@ public class ChatbotAgent {
                 .build();
 
 
-        return ReactAgent.builder()
+        Builder builder = ReactAgent.builder()
                 .name("DAS")
                 .model(chatModel)
                 .instruction(INSTRUCTION)
                 .enableLogging(true)
                 .saver(memorySaver)
                 .tools(otherTools)
-                .toolCallbackProviders(toolCallbackProvider)
-                .hooks(List.of(hook,messagesModelHook))
-                .build();
+                .hooks(List.of(hook, messagesModelHook));
+        if (toolCallbackProvider != null) {
+            builder.toolCallbackProviders(toolCallbackProvider);
+        }
+        return builder.build();
+
     }
 
     @Bean
