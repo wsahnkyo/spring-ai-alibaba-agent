@@ -38,10 +38,11 @@ mvn clean package -DskipTests
 
 - `spring.ai.dashscope.api-key: ${AI_DASHSCOPE_API_KEY}`
 - `spring.ai.dashscope.chat.options.model: ${AI_DASHSCOPE_MODEL}`
+- `spring.ai.dashscope.embedding.options.model-name: text-embedding-v3`
 - `server.port: 8081`
 - `agent.knowledge.raw-dir: ${AGENT_RAW_KNOWLEDGE_DIR:src/main/resources/raw-knowledge}`
 - `agent.knowledge.store-file: ${AGENT_KNOWLEDGE_STORE_FILE:src/main/resources/knowledge/vector-store.json}`
-- `agent.knowledge.rebuild-on-startup: ${AGENT_KNOWLEDGE_REBUILD:false}`
+- `agent.knowledge.rebuild-on-startup: ${AGENT_KNOWLEDGE_REBUILD:true}`
 
 ### 3.1 必填环境变量（PowerShell）
 
@@ -59,12 +60,17 @@ $env:AI_DASHSCOPE_MODEL="qwen3-max-2026-01-23"
 ### 3.2 可选环境变量
 
 ```powershell
-$env:AGENT_KNOWLEDGE_REBUILD="false"
+$env:AGENT_KNOWLEDGE_REBUILD="true"
 $env:AGENT_RAW_KNOWLEDGE_DIR="src/main/resources/raw-knowledge"
 $env:AGENT_KNOWLEDGE_STORE_FILE="src/main/resources/knowledge/vector-store.json"
 $env:MCP_ENABLE="false"
 $env:MCP_URL="http://localhost:8000/"
 ```
+
+`AGENT_KNOWLEDGE_REBUILD` 说明：
+
+- 当前默认值是 `true`，每次启动都会根据原始知识库重建向量库
+- 如需加快启动，可手动设置为 `false`（前提是已有可用的 `vector-store.json`）
 
 ## 4. 启动项目
 
@@ -97,11 +103,11 @@ java -jar target/agent-0.0.1-SNAPSHOT.jar
 每条知识必须是“问题 + 答案”结构，条目之间空行分隔，例如：
 
 ```text
-问题：什么是活动报警？什么是历史报警？
-答案：报警触发时，在alarm_active表中存储，称为活动报警；报警解除后，在alarm_history表中存储，称为历史报警。
+问题：微服务之间调用超时怎么处理？
+答案：服务间超时可能是下游服务处理慢、网络延迟、超时配置不合理或熔断器未正确配置，解法各有不同。请提供调用链路、超时配置值和下游服务的响应时间监控数据。
 
-问题：报警为什么不触发？
-答案：报警不触发有多种原因，不同报警类型排查手段不同，需要先明确报警类型。
+问题：消息队列积压怎么处理？
+答案：消息积压的处理方式取决于积压原因（消费者处理慢/消费者数量不足/消息量突增）和消息队列类型。请提供消息队列类型（Kafka/RabbitMQ 等）、积压量级和消费者当前状态。
 ```
 
 解析规则：
@@ -113,9 +119,9 @@ java -jar target/agent-0.0.1-SNAPSHOT.jar
 ### 6.2 新增知识步骤
 
 1. 在 `src/main/resources/raw-knowledge` 新增或编辑 `.txt` 文件。
-2. 启动前开启重建向量库。
+2. 启动前开启重建向量库（当前默认即为 `true`）。
 3. 启动应用，系统会重建并写入向量库文件。
-4. 重建完成后建议恢复为 `false`，以加快后续启动。
+4. 如需后续快速启动，可改成 `false`，直接加载已有向量库。
 
 ```powershell
 $env:AGENT_KNOWLEDGE_REBUILD="true"
@@ -150,3 +156,9 @@ $env:MCP_URL="http://localhost:8000/"
 - `src/main/resources/application.yaml`：配置中心
 - `src/main/resources/raw-knowledge/`：原始知识文件
 - `src/main/resources/knowledge/vector-store.json`：向量库存储文件
+
+## 9. 注意事项（新增）
+
+- `AI_DASHSCOPE_MODEL` 当前没有默认值，未设置会导致对话模型无法按预期初始化
+- `ChatbotAgent` 中技能目录当前写死为 `C:\Users\Admin\.qwen\skills`，如果本机不存在该目录，请按实际环境调整代码
+
