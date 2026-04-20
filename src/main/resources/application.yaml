@@ -19,3 +19,8 @@ spring:
         request-timeout: 60s
 server:
   port: 8081
+agent:
+  knowledge:
+    raw-dir: ${AGENT_RAW_KNOWLEDGE_DIR:src/main/resources/raw-knowledge}
+    store-file: ${AGENT_KNOWLEDGE_STORE_FILE:src/main/resources/knowledge/vector-store.json}
+    rebuild-on-startup: ${AGENT_KNOWLEDGE_REBUILD:false}

@@ -15,16 +15,9 @@
  */
 package com.ecoos.agent;
 
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.graph.agent.Builder;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
-import com.alibaba.cloud.ai.graph.agent.hook.messages.MessagesModelHook;
-import com.alibaba.cloud.ai.graph.agent.hook.shelltool.ShellToolAgentHook;
 import com.alibaba.cloud.ai.graph.agent.hook.skills.SkillsAgentHook;
-import com.alibaba.cloud.ai.graph.agent.tools.ShellTool;
-import com.alibaba.cloud.ai.graph.agent.extension.tools.filesystem.ReadFileTool;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 
 import com.alibaba.cloud.ai.graph.skills.registry.SkillRegistry;
@@ -32,35 +25,17 @@ import com.alibaba.cloud.ai.graph.skills.registry.filesystem.FileSystemSkillRegi
 import org.springframework.ai.chat.model.ChatModel;
 
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
-import org.springframework.ai.reader.TextReader;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.function.FunctionToolCallback;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.SimpleVectorStore;
-
-
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternResolver;
-
-import java.io.File;
-import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -118,6 +93,7 @@ public class ChatbotAgent {
     }
 
 
+    @Bean
     public ToolCallback searchDocuments(VectorStore vectorStore) {
         return FunctionToolCallback.builder("search_documents",
                         // 2. 简化 Lambda 表达式逻辑，直接调用 similaritySearch(String query)
@@ -129,7 +105,7 @@ public class ChatbotAgent {
                             // 参考代码逻辑：将检索到的多个文档内容合并为一个字符串返回
                             // 这样 Agent 能更直接地获取上下文，而不是处理复杂的 JSON 结构
                             String combinedContent = docs.stream()
-                                    .map(Document::getText) // 或者 doc.getContent() 取决于具体版本，通常是 getText()
+                                    .map(this::formatQaDocument)
                                     .collect(Collectors.joining("\n\n"));
 
                             return new DocumentSearchResponse(combinedContent);
@@ -139,27 +115,13 @@ public class ChatbotAgent {
                 .build();
     }
 
-    //    @Bean
-    public VectorStore generateVectorStore(EmbeddingModel embeddingModel) {
-        SimpleVectorStore store = SimpleVectorStore.builder(embeddingModel).build();
-
-        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        try {
-            List<Document> documents = Arrays.stream(
-                            resolver.getResources("classpath:knowledge/*"))
-                    .flatMap(resource -> {
-                        TextReader textReader = new TextReader(resource);
-                        return textReader.get().stream();
-                    })
-                    .collect(Collectors.toList());
-
-            store.add(documents);
-        } catch (IOException e) {
-            throw new RuntimeException("加载文档失败", e);
-        }
-
-        return store;
+    private String formatQaDocument(Document doc) {
+        String question = doc.getText() == null ? "" : doc.getText().trim();
+        Object answerObj = doc.getMetadata() == null ? null : doc.getMetadata().get("answer");
+        String answer = answerObj == null ? "" : String.valueOf(answerObj).trim();
+        return "问题：" + question + "\n答案：" + answer;
     }
+
     // ==================== 内部数据类 ====================
 
     /**
