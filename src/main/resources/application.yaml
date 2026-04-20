@@ -7,7 +7,7 @@ spring:
           model-name: text-embedding-v3 # 或者 text-embedding-v3
       chat:
         options:
-          model: qwen3-max-2026-01-23
+          model: ${AI_DASHSCOPE_MODEL}
     mcp:
       client:
         enabled:  ${MCP_ENABLE:false}
@@ -23,4 +23,4 @@ agent:
   knowledge:
     raw-dir: ${AGENT_RAW_KNOWLEDGE_DIR:src/main/resources/raw-knowledge}
     store-file: ${AGENT_KNOWLEDGE_STORE_FILE:src/main/resources/knowledge/vector-store.json}
-    rebuild-on-startup: ${AGENT_KNOWLEDGE_REBUILD:false}
+    rebuild-on-startup: ${AGENT_KNOWLEDGE_REBUILD:true}
